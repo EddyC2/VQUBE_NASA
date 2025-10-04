@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Pollution & Parks Globe</title>
+    <style>
+      body { margin: 0; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="globeViz"></div>
+
+    <!-- Globe.gl library -->
+    <script src="https://unpkg.com/globe.gl"></script>
+    <script>
+      // Init globe
+      const world = Globe()
+        (document.getElementById('globeViz'))
+        .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
+        .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
+        .backgroundColor('#000')
+        .pointAltitude('size')
+        .pointColor('color');
+
+      // Example mock data (we have to replace with NASA datasets)
+      const data = [
+        { lat: 34.05, lng: -118.25, size: 0.5, color: 'red' },   // LA high pollution
+        { lat: 40.71, lng: -74.00, size: 0.3, color: 'orange' }, // NYC mid pollution
+        { lat: 46.88, lng: -121.74, size: 0.2, color: 'green' }  // Mountain low pollution
+      ];
+
+      world.pointsData(data);
+
+      // Fetch US states GeoJSON and add polygons with mock data
+      fetch('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json')
+        .then(res => res.json())
+        .then(worldGeoJson => {
+          // Add mock CO, NDVI, and population values to each state feature
+          statesGeoJson.features.forEach(feature => {
+            // Generate mock CO values between 0 and 1
+            const co = Math.random();
+            // Generate mock NDVI values between 0 and 1
+            const ndvi = Math.random();
+            // Generate mock population values between 0 and 10 million
+            const population = Math.floor(Math.random() * 10000000);
+
+            feature.properties.co = co;
+            feature.properties.ndvi = ndvi;
+            feature.properties.population = population;
+          });
+
+          // Set polygons data (basically shapes represtning states)
+          world.polygonsData(statesGeoJson.features)
+            .polygonAltitude(0.01)
+            .polygonCapColor(d => {
+              // Color states based on CO value: red is (high), orange is (mid), green is(low)
+              if (d.properties.co > 0.66) return 'red';
+              if (d.properties.co > 0.33) return 'orange';
+              return 'green';
+            })
+            .polygonSideColor(() => 'rgba(0, 100, 0, 0.15)')
+            .polygonStrokeColor(() => '#222')
+            .polygonLabel(d => `
+              <b>${d.properties.name}</b><br />
+              CO: ${d.properties.co.toFixed(2)}<br />
+              NDVI: ${d.properties.ndvi.toFixed(2)}<br />
+              Population: ${d.properties.population.toLocaleString()}
+            `);
+        });
+    </script>
+  </body>
+</html>
