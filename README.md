@@ -1,5 +1,7 @@
 # 🌍 Ecosphere
 
+#Link to Youtube Video: https://youtube.com
+
 Ecosphere is an interactive globe that visualizes global CO₂, GHP, and PAR trends using machine learning, Python, HTML, CSS, and JavaScript. Developed for the NASA Space Apps Challenge 2025, the project explores global pollution and environmental impact using NASA open datasets from 1995 to 2020. It uses machine learning algorithms to analyze historical environmental data, predict future trends up to 2039, and cluster countries based on CO₂ emission patterns, providing insights into global environmental performance with use of kmeans cluster algorithm.
 
 To run the project, first install all required Python libraries with pip install -r requirements.txt. Ensure the datasets (CDA_ind.csv, GHP_ind.csv, PAR_ind.csv) are present in the project directory. Start by running app.py to generate the prediction files using machine learning models, followed by Co2chart.py to execute the CO₂ trend clustering algorithm. Once these scripts have been run, open indexNASA.html in your browser to explore the interactive visualization.
