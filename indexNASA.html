@@ -38,7 +38,19 @@
         z-index: 100;
         display: none;
       }
-      #controls h3 {
+      #trendControls {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: white;
+        background: rgba(0,0,0,0.8);
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 12px;
+        z-index: 100;
+        display: none;
+      }
+      #controls h3, #trendControls h3 {
         margin-top: 0;
         margin-bottom: 10px;
       }
@@ -102,14 +114,15 @@
     </div>
     
     <div id="controls">
-      <h3>🌍 World CO₂ Predictions</h3>
+      <h3>🌍 World CO₂ </h3>
       <p style="font-size: 11px; margin-bottom: 10px;">Click to filter by level:</p>
       <div class="legend-item active" data-level="high">
         <div class="legend-color" style="background: #d73027;"></div>
         <span>High (>66)</span>
       </div>
       <div class="legend-item active" data-level="medium">
-        <div class="legend-color" style="background: #fdae61;"></div>
+        <div class="legend-color" style="background: #cba125
+;"></div>
         <span>Mid (33-66)</span>
       </div>
       <div class="legend-item active" data-level="low">
@@ -123,8 +136,25 @@
       </p>
     </div>
 
-    <div id="yearLabel">Year: 2021</div>
-    <input type="range" id="yearSlider" min="2021" max="2039" step="1" value="2021" />
+    <div id="trendControls">
+      <h3>📈 Emission Trends</h3>
+      <p style="font-size: 11px; margin-bottom: 10px;">Click to filter by trend:</p>
+      <div class="legend-item active" data-trend="increasing">
+        <div class="legend-color" style="background: #c47e7e;"></div>
+        <span>Increasing</span>
+      </div>
+      <div class="legend-item active" data-trend="steady">
+        <div class="legend-color" style="background: #82abcc;"></div>
+        <span>Steady</span>
+      </div>
+      <div class="legend-item active" data-trend="decreasing">
+        <div class="legend-color" style="background: #95c297;"></div>
+        <span>Decreasing</span>
+      </div>
+    </div>
+
+    <div id="yearLabel">Year: 2025</div>
+    <input type="range" id="yearSlider" min="1995" max="2039" step="1" value="2025" />
 
     <div id="globeViz"></div>
 
@@ -135,8 +165,9 @@
       let cdaData = {};
       let ghpData = {};
       let parData = {};
-      let trendData = {}; // New: stores trend_label by country
+      let trendData = {};
       let activeFilters = { high: true, medium: true, low: true };
+      let activeTrendFilters = { increasing: true, steady: true, decreasing: true };
 
       const world = Globe()
         (document.getElementById('globeViz'))
@@ -191,7 +222,6 @@
           });
       }
 
-      // New function to load trend clusters CSV
       function loadTrendClusters() {
         console.log('Loading co2_trend_clusters.csv...');
         return fetch('co2_trend_clusters.csv')
@@ -254,7 +284,7 @@
             countriesData = data;
             console.log(`Map loaded: ${countriesData.features.length} countries`);
             
-            updateYear(2021);
+            updateYear(2025);
 
             world
               .polygonsData(countriesData.features)
@@ -264,7 +294,7 @@
                 const cda = d.properties.cda;
                 if (cda === null || cda === undefined) return '#333333';
                 if (cda > 66) return '#d73027';
-                if (cda > 33) return '#fdae61';
+                if (cda > 33) return '#cba125';
                 return '#4daf4a';
               })
               .polygonSideColor(d => d.properties.visible ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)')
@@ -281,7 +311,6 @@
                 const hasPAR = par !== null && par !== undefined;
                 const hasTrend = trend !== null && trend !== undefined;
                 
-                // Determine trend color
                 let trendColor = '#888';
                 if (trend === 'Increasing') trendColor = '#ff5252';
                 else if (trend === 'Decreasing') trendColor = '#4caf50';
@@ -317,8 +346,10 @@
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('controls').style.display = 'block';
+            document.getElementById('trendControls').style.display = 'block';
             
             setupLegendFilters();
+            setupTrendFilters();
             
             console.log('Globe ready!');
           })
@@ -331,7 +362,7 @@
       }
 
       function setupLegendFilters() {
-        const legendItems = document.querySelectorAll('.legend-item');
+        const legendItems = document.querySelectorAll('#controls .legend-item');
         
         legendItems.forEach(item => {
           item.addEventListener('click', () => {
@@ -352,17 +383,44 @@
         });
       }
 
+      function setupTrendFilters() {
+        const trendItems = document.querySelectorAll('#trendControls .legend-item');
+        
+        trendItems.forEach(item => {
+          item.addEventListener('click', () => {
+            const trend = item.getAttribute('data-trend');
+            
+            activeTrendFilters[trend] = !activeTrendFilters[trend];
+            
+            if (activeTrendFilters[trend]) {
+              item.classList.add('active');
+              item.classList.remove('inactive');
+            } else {
+              item.classList.remove('active');
+              item.classList.add('inactive');
+            }
+            
+            applyFilters();
+          });
+        });
+      }
+
       function applyFilters() {
         if (!countriesData) return;
         
         countriesData.features.forEach(feature => {
           const level = feature.properties.pollution_level_key;
-          feature.properties.visible = activeFilters[level] || level === 'nodata';
+          const trendKey = feature.properties.trend_label_key;
+          
+          const levelMatch = activeFilters[level] || level === 'nodata';
+          const trendMatch = activeTrendFilters[trendKey] || trendKey === 'notrend';
+          
+          feature.properties.visible = levelMatch && trendMatch;
         });
         
         world.polygonsData(countriesData.features);
         
-        console.log('Filters applied:', activeFilters);
+        console.log('Filters applied - Levels:', activeFilters, 'Trends:', activeTrendFilters);
       }
 
       function findCountryData(featureName, year, dataStore) {
@@ -393,7 +451,6 @@
         return null;
       }
 
-      // New function to find trend data
       function findTrendData(featureName) {
         if (trendData[featureName]) {
           return trendData[featureName];
@@ -422,7 +479,6 @@
         return null;
       }
 
-      
       function updateYear(year) {
         if (!countriesData) return;
         
@@ -450,20 +506,29 @@
             feature.properties.pollution_level_key = 'nodata';
           }
           
-          feature.properties.visible = activeFilters[feature.properties.pollution_level_key] || feature.properties.pollution_level_key === 'nodata';
-          
           if (ghp !== null) countriesWithGHP++;
           feature.properties.ghp = ghp;
           
           if (par !== null) countriesWithPAR++;
           feature.properties.par = par;
           
-          if (trend !== null) countriesWithTrend++;
-          feature.properties.trend_label = trend;
+          if (trend !== null) {
+            countriesWithTrend++;
+            feature.properties.trend_label = trend;
+            feature.properties.trend_label_key = trend.toLowerCase();
+          } else {
+            feature.properties.trend_label = null;
+            feature.properties.trend_label_key = 'notrend';
+          }
           
           feature.properties.year = year;
+          
+          const level = feature.properties.pollution_level_key;
+          const trendKey = feature.properties.trend_label_key;
+          const levelMatch = activeFilters[level] || level === 'nodata';
+          const trendMatch = activeTrendFilters[trendKey] || trendKey === 'notrend';
+          feature.properties.visible = levelMatch && trendMatch;
         });
-        
         
         console.log(`Year ${year}: CDA=${countriesWithCDA}, GHP=${countriesWithGHP}, PAR=${countriesWithPAR}, Trend=${countriesWithTrend} countries`);
         
