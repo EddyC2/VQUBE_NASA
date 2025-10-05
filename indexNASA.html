@@ -37,8 +37,14 @@
         font-size: 12px;
         z-index: 100;
         display: none;
+        max-height: 90vh;
+        overflow-y: auto;
       }
-      #controls h3 {
+      #trendControls {
+      margin-top: 15px;
+      }
+
+      #controls h3, #trendControls h3 {
         margin-top: 0;
         margin-bottom: 10px;
       }
@@ -93,6 +99,13 @@
         padding: 10px 20px;
         border-radius: 8px;
       }
+      #storyBtn, #storyText {
+        position: absolute;
+        z-index: 10000 !important;
+      }
+      #storyBtn {
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      }
     </style>
   </head>
   <body>
@@ -116,15 +129,46 @@
         <div class="legend-color" style="background: #4daf4a;"></div>
         <span>Low (<33)</span>
       </div>
+      
+      <!-- Emission Trends goes right under it -->
+      <div id="trendControls" style="margin-top: 15px;">
+        <h3>📈 Emission Trends</h3>
+        <p style="font-size: 11px; margin-bottom: 10px;">Bubbles show trends:</p>
+        <div class="legend-item active" data-trend="increasing">
+          <div class="legend-color" style="background: #FF6B35;"></div>
+          <span>Increasing</span>
+        </div>
+        <div class="legend-item active" data-trend="steady">
+          <div class="legend-color" style="background: purple;"></div>
+          <span>Steady</span>
+        </div>
+        <div class="legend-item active" data-trend="decreasing">
+          <div class="legend-color" style="background: #95E1D3;"></div>
+          <span>Decreasing</span>
+        </div>
+      </div>
+    
       <p style="font-size: 11px; margin-top: 15px; opacity: 0.8;">
         Hover over countries for details<br>
         (Shows CDA, GHP, PAR data)<br>
         Drag to rotate • Scroll to zoom
       </p>
     </div>
+    
 
-    <div id="yearLabel">Year: 2021</div>
-    <input type="range" id="yearSlider" min="2021" max="2039" step="1" value="2021" />
+    <div id="yearLabel">Year: 2025</div>
+    <input type="range" id="yearSlider" min="1995" max="2039" step="1" value="2025" />
+
+    <button id="storyBtn"
+            style="position:absolute; top:20px; left:50%; transform:translateX(-50%);
+                   z-index:300; background:#007bff; color:white; border:none; border-radius:6px;
+                   padding:10px 16px; cursor:pointer; font-weight:bold;">▶ Story Mode</button>
+
+    <div id="storyText"
+         style="position:absolute; bottom:90px; left:50%; transform:translateX(-50%);
+                color:white; background:rgba(0,0,0,0.7); padding:12px 20px;
+                border-radius:8px; font-size:14px; text-align:center;
+                max-width:80%; z-index:300;">Click ▶ Story Mode to begin</div>
 
     <div id="globeViz"></div>
 
@@ -135,8 +179,10 @@
       let cdaData = {};
       let ghpData = {};
       let parData = {};
-      let trendData = {}; // New: stores trend_label by country
+      let trendData = {};
+      let trendBubbles = [];
       let activeFilters = { high: true, medium: true, low: true };
+      let activeTrendFilters = { increasing: true, steady: true, decreasing: true };
 
       const world = Globe()
         (document.getElementById('globeViz'))
@@ -145,8 +191,7 @@
         .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
         .width(window.innerWidth)
         .height(window.innerHeight);
-
-      console.log('Loading data...');
+        
 
       function loadCSV(filename, dataStore, key) {
         console.log(`Loading ${filename}...`);
@@ -161,21 +206,24 @@
               Papa.parse(csvText, {
                 header: true,
                 dynamicTyping: true,
+                skipEmptyLines: true,
                 complete: function(results) {
                   console.log(`${key}: ${results.data.length} rows parsed`);
                   
                   let count = 0;
                   results.data.forEach(row => {
                     if (row.country && row.year && row.predicted_value !== null && row.predicted_value !== undefined) {
-                      if (!dataStore[row.country]) {
-                        dataStore[row.country] = {};
+                      const countryName = row.country.trim();
+                      if (!dataStore[countryName]) {
+                        dataStore[countryName] = {};
                       }
-                      dataStore[row.country][row.year] = row.predicted_value;
+                      dataStore[countryName][row.year] = row.predicted_value;
                       count++;
                     }
                   });
 
                   console.log(`${key}: ${Object.keys(dataStore).length} countries, ${count} data points`);
+                  console.log(`${key} sample countries:`, Object.keys(dataStore).slice(0, 5));
                   resolve();
                 },
                 error: function(error) {
@@ -191,7 +239,6 @@
           });
       }
 
-      // New function to load trend clusters CSV
       function loadTrendClusters() {
         console.log('Loading co2_trend_clusters.csv...');
         return fetch('co2_trend_clusters.csv')
@@ -204,12 +251,13 @@
             return new Promise((resolve, reject) => {
               Papa.parse(csvText, {
                 header: true,
+                skipEmptyLines: true,
                 complete: function(results) {
                   console.log(`Trend clusters: ${results.data.length} rows parsed`);
                   
                   results.data.forEach(row => {
                     if (row.country && row.trend_label) {
-                      trendData[row.country] = row.trend_label;
+                      trendData[row.country.trim()] = row.trend_label.trim();
                     }
                   });
 
@@ -246,6 +294,96 @@
           error.message + '<br/>Check console (F12) for details</div>';
       });
 
+      // Get centroid from polygon coordinates
+      function getCentroid(geometry) {
+        let coords;
+        if (geometry.type === 'Polygon') {
+          coords = geometry.coordinates[0];
+        } else if (geometry.type === 'MultiPolygon') {
+          coords = geometry.coordinates[0][0];
+        } else {
+          return null;
+        }
+        
+        let sumLat = 0, sumLng = 0, count = 0;
+        coords.forEach(coord => {
+          sumLng += coord[0];
+          sumLat += coord[1];
+          count++;
+        });
+        
+        return {
+          lat: sumLat / count,
+          lng: sumLng / count
+        };
+      }
+
+      // Create trend bubbles at country centroids only
+      function createTrendBubbles() {
+        trendBubbles = [];
+        
+        countriesData.features.forEach(feature => {
+          const countryName = feature.properties.ADMIN || feature.properties.NAME;
+          const trend = findTrendData(countryName);
+          
+          if (trend && feature.geometry) {
+            const centroid = getCentroid(feature.geometry);
+            
+            if (centroid) {
+              let color = '#888';
+              let size = 0.6;
+              
+              if (trend === 'Increasing') {
+                color = '#FF6B35';
+                size = 0.7;
+              } else if (trend === 'Steady') {
+                color = 'purple';
+                size = 0.6;
+              } else if (trend === 'Decreasing') {
+                color = '#95E1D3';
+                size = 0.65;
+              }
+              
+              // Just one bubble at the center of each country
+              trendBubbles.push({
+                lat: centroid.lat,
+                lng: centroid.lng,
+                size: size,
+                color: color,
+                name: countryName,
+                trend: trend,
+                trendKey: trend.toLowerCase()
+              });
+            }
+          }
+        });
+        
+        console.log(`Created ${trendBubbles.length} trend bubbles`);
+        updateTrendBubbles();
+      }
+
+      function updateTrendBubbles() {
+      const filteredBubbles = trendBubbles.filter(b => {
+        // Only show bubbles if country exists and trendVisible is true
+        const feature = countriesData.features.find(f => f.properties.ADMIN === b.name || f.properties.NAME === b.name);
+        return feature && feature.properties.trendVisible;
+      });
+
+      world.pointsData(filteredBubbles)
+          .pointAltitude(0.01)
+          .pointColor('color')
+          .pointRadius(d => d.size)
+          .pointLabel(d => `
+            <div style="background: rgba(0,0,0,0.9); color: white; padding: 10px; border-radius: 4px; font-family: Arial;">
+              <b style="color: ${d.color};">${d.name}</b><br/>
+              <span style="font-size: 12px;">Emission Trend: ${d.trend}</span>
+            </div>
+          `);
+
+      console.log(`Displaying ${filteredBubbles.length} trend bubbles`);
+    }
+
+
       function loadWorldMap() {
         console.log('Loading world map...');
         fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson')
@@ -254,19 +392,15 @@
             countriesData = data;
             console.log(`Map loaded: ${countriesData.features.length} countries`);
             
-            updateYear(2021);
+            createTrendBubbles();
+            updateYear(2025);
 
             world
               .polygonsData(countriesData.features)
-              .polygonAltitude(d => d.properties.visible ? 0.01 : 0)
-              .polygonCapColor(d => {
-                if (!d.properties.visible) return 'rgba(80, 80, 80, 0.3)';
-                const cda = d.properties.cda;
-                if (cda === null || cda === undefined) return '#333333';
-                if (cda > 66) return '#d73027';
-                if (cda > 33) return '#fdae61';
-                return '#4daf4a';
-              })
+              .polygonAltitude(0.01)
+              .polygonCapColor(d => getCountryColor(d))
+
+
               .polygonSideColor(d => d.properties.visible ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)')
               .polygonStrokeColor(d => d.properties.visible ? '#111' : '#333')
               .polygonLabel(d => {
@@ -281,11 +415,10 @@
                 const hasPAR = par !== null && par !== undefined;
                 const hasTrend = trend !== null && trend !== undefined;
                 
-                // Determine trend color
                 let trendColor = '#888';
-                if (trend === 'Increasing') trendColor = '#ff5252';
-                else if (trend === 'Decreasing') trendColor = '#4caf50';
-                else if (trend === 'Steady') trendColor = '#2196f3';
+                if (trend === 'Increasing') trendColor = '#FF6B35';
+                else if (trend === 'Decreasing') trendColor = '#95E1D3';
+                else if (trend === 'Steady') trendColor = '#4ECDC4';
                 
                 return `
                   <div style="background: rgba(0,0,0,0.95); color: white; padding: 14px; border-radius: 6px; max-width: 260px; font-family: Arial;">
@@ -317,8 +450,10 @@
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('controls').style.display = 'block';
+            document.getElementById('trendControls').style.display = 'block';
             
             setupLegendFilters();
+            setupTrendFilters();
             
             console.log('Globe ready!');
           })
@@ -331,7 +466,7 @@
       }
 
       function setupLegendFilters() {
-        const legendItems = document.querySelectorAll('.legend-item');
+        const legendItems = document.querySelectorAll('#controls .legend-item');
         
         legendItems.forEach(item => {
           item.addEventListener('click', () => {
@@ -352,24 +487,78 @@
         });
       }
 
-      function applyFilters() {
-        if (!countriesData) return;
+      function setupTrendFilters() {
+        const trendItems = document.querySelectorAll('#trendControls .legend-item');
         
-        countriesData.features.forEach(feature => {
-          const level = feature.properties.pollution_level_key;
-          feature.properties.visible = activeFilters[level] || level === 'nodata';
+        trendItems.forEach(item => {
+          item.addEventListener('click', () => {
+            const trend = item.getAttribute('data-trend');
+            
+            activeTrendFilters[trend] = !activeTrendFilters[trend];
+            
+            if (activeTrendFilters[trend]) {
+              item.classList.add('active');
+              item.classList.remove('inactive');
+            } else {
+              item.classList.remove('active');
+              item.classList.add('inactive');
+            }
+            
+            applyFilters();
+          });
         });
-        
-        world.polygonsData(countriesData.features);
-        
-        console.log('Filters applied:', activeFilters);
       }
 
+      function applyFilters() {
+      if (!countriesData) return;
+
+      countriesData.features.forEach(feature => {
+        const level = feature.properties.pollution_level_key;
+        const trendKey = feature.properties.trend_label_key;
+
+        // Separate visibility flags
+        feature.properties.levelVisible = activeFilters[level] || level === 'nodata';
+        feature.properties.trendVisible = activeTrendFilters[trendKey] || trendKey === 'notrend';
+      });
+
+  // Update polygons (CO2 colors)
+  world.polygonCapColor(d => d.properties.levelVisible ? getCountryColor(d) : 'rgba(50,50,50,0.3)');
+
+
+  // Update trend bubbles independently
+  updateTrendBubbles();
+
+  console.log('Filters applied - Levels:', activeFilters, 'Trends:', activeTrendFilters);
+}
+
+
       function findCountryData(featureName, year, dataStore) {
+        // Enhanced name mapping for better matching
+        const nameMap = {
+      'United States of America': 'United States',
+      'United States': 'United States of America',
+      'USA': 'United States of America',
+      'Russian Federation': 'Russia',
+      'Republic of Korea': 'South Korea',
+      'Democratic Republic of the Congo': 'Congo',
+      'Czech Republic': 'Czechia',
+      'United Kingdom': 'United Kingdom',
+      'Britain': 'United Kingdom'
+    };
+
+        
+        // Try direct match first
         if (dataStore[featureName] && dataStore[featureName][year] !== undefined) {
           return dataStore[featureName][year];
         }
         
+        // Try mapped name
+        const mappedName = nameMap[featureName];
+        if (mappedName && dataStore[mappedName] && dataStore[mappedName][year] !== undefined) {
+          return dataStore[mappedName][year];
+        }
+        
+        // Try case-insensitive search
         const lowerName = featureName.toLowerCase();
         for (let country in dataStore) {
           if (country.toLowerCase() === lowerName && dataStore[country][year] !== undefined) {
@@ -377,26 +566,27 @@
           }
         }
         
-        const nameMap = {
-          'United States of America': 'United States',
-          'Russian Federation': 'Russia',
-          'Republic of Korea': 'South Korea',
-          'Democratic Republic of the Congo': 'Congo',
-          'Czech Republic': 'Czechia'
-        };
-        
-        const mappedName = nameMap[featureName];
-        if (mappedName && dataStore[mappedName] && dataStore[mappedName][year] !== undefined) {
-          return dataStore[mappedName][year];
-        }
-        
         return null;
       }
 
-      // New function to find trend data
       function findTrendData(featureName) {
+        const nameMap = {
+          'United States of America': 'United States',
+          'USA': 'United States',
+          'Russian Federation': 'Russia',
+          'Republic of Korea': 'South Korea',
+          'Democratic Republic of the Congo': 'Congo',
+          'Czech Republic': 'Czechia',
+          'United Kingdom': 'United Kingdom'
+        };
+        
         if (trendData[featureName]) {
           return trendData[featureName];
+        }
+        
+        const mappedName = nameMap[featureName];
+        if (mappedName && trendData[mappedName]) {
+          return trendData[mappedName];
         }
         
         const lowerName = featureName.toLowerCase();
@@ -406,23 +596,9 @@
           }
         }
         
-        const nameMap = {
-          'United States of America': 'United States',
-          'Russian Federation': 'Russia',
-          'Republic of Korea': 'South Korea',
-          'Democratic Republic of the Congo': 'Congo',
-          'Czech Republic': 'Czechia'
-        };
-        
-        const mappedName = nameMap[featureName];
-        if (mappedName && trendData[mappedName]) {
-          return trendData[mappedName];
-        }
-        
         return null;
       }
 
-      
       function updateYear(year) {
         if (!countriesData) return;
         
@@ -450,24 +626,36 @@
             feature.properties.pollution_level_key = 'nodata';
           }
           
-          feature.properties.visible = activeFilters[feature.properties.pollution_level_key] || feature.properties.pollution_level_key === 'nodata';
-          
           if (ghp !== null) countriesWithGHP++;
           feature.properties.ghp = ghp;
           
           if (par !== null) countriesWithPAR++;
           feature.properties.par = par;
           
-          if (trend !== null) countriesWithTrend++;
-          feature.properties.trend_label = trend;
+          if (trend !== null) {
+            countriesWithTrend++;
+            feature.properties.trend_label = trend;
+            feature.properties.trend_label_key = trend.toLowerCase();
+          } else {
+            feature.properties.trend_label = null;
+            feature.properties.trend_label_key = 'notrend';
+          }
           
           feature.properties.year = year;
+          
+          const level = feature.properties.pollution_level_key;
+          const trendKey = feature.properties.trend_label_key;
+          feature.properties.levelVisible = activeFilters[level] || level === 'nodata';
+          feature.properties.trendVisible = activeTrendFilters[trendKey] || trendKey === 'notrend';
+
         });
-        
         
         console.log(`Year ${year}: CDA=${countriesWithCDA}, GHP=${countriesWithGHP}, PAR=${countriesWithPAR}, Trend=${countriesWithTrend} countries`);
         
-        world.polygonsData(countriesData.features);
+        world.polygonCapColor(d => d.properties.levelVisible ? getCountryColor(d) : 'rgba(50,50,50,0.3)');
+
+        updateTrendBubbles();
+
         document.getElementById('yearLabel').textContent = "Year: " + year;
       }
 
@@ -482,6 +670,114 @@
       window.addEventListener('resize', () => {
         world.width(window.innerWidth).height(window.innerHeight);
       });
+
+      // STORY MODE
+      const storyPoints = [
+        { country: "United States", lat: 40.71, lng: -74.00, year: 2000, text: "2000: Rising emissions in North America." },
+        { country: "Japan", lat: 35.68, lng: 139.69, year: 2010, text: "2010: Industrial growth impacts East Asia." },
+        { country: "Brazil", lat: -23.55, lng: -46.63, year: 2020, text: "2020: South America focuses on sustainability." },
+        { country: "United Kingdom", lat: 51.51, lng: -0.13, year: 2025, text: "2025: Global collaboration stabilizes CO₂." }
+      ];
+      function getCountryColor(d) {
+        const cda = d.properties.cda;
+        if (cda === null || cda === undefined) return 'rgba(50,50,50,0.3)';
+        if (cda > 66) return '#d73027';
+        if (cda > 33) return '#cba125';
+        return '#4daf4a';
+}
+
+
+
+    function highlightCountry(countryName) {
+        if (!countriesData) return;
+
+        const feature = countriesData.features.find(f => {
+          const name = f.properties.ADMIN || f.properties.NAME;
+          return name === countryName || name.includes(countryName);
+        });
+        if (!feature) return;
+
+        // Save the original color
+        const originalColor = getCountryColor(feature);
+
+        let blinkCount = 0;
+        const maxBlinks = 12;
+        const blinkInterval = setInterval(() => {
+          feature.properties._highlighted = !feature.properties._highlighted;
+
+          world.polygonsData(countriesData.features)
+            .polygonCapColor(d => {
+              if (d === feature) {
+                return d.properties._highlighted ? 'rgba(255, 215, 0, 0.8)' : getCountryColor(d);
+ // use original color
+              }
+              return getCountryColor(d);
+            });
+
+          blinkCount++;
+          if (blinkCount >= maxBlinks) {
+            clearInterval(blinkInterval);
+            feature.properties._highlighted = false;
+            world.polygonsData(countriesData.features)
+              .polygonCapColor(d => getCountryColor(d));
+          }
+        }, 500);
+    }
+
+    function restoreCountryColors() {
+    world.polygonsData(countriesData.features)
+    .polygonCapColor(d => d.properties.visible ? d.properties.fillColor : 'rgba(50,50,50,0.3)');
+}
+
+
+
+
+      async function playStory() {
+        const btn = document.getElementById('storyBtn');
+        const textBox = document.getElementById('storyText');
+        btn.disabled = true;
+
+        for (const point of storyPoints) {
+          world.pointOfView({ lat: point.lat, lng: point.lng, altitude: 2.0 }, 2000);
+          highlightCountry(point.country);
+
+          const year = point.year;
+          const country = point.country;
+
+          updateYear(year);
+
+          const cda = findCountryData(country, year, cdaData);
+          const ghp = findCountryData(country, year, ghpData);
+          const par = findCountryData(country, year, parData);
+          const trend = findTrendData(country);
+
+          const dataHTML = `
+            <div style="margin-top: 10px; font-size: 12px; color: #ccc;">
+              <b>${country}</b> (${year})<br/>
+              CDA: ${cda !== null ? cda.toFixed(2) : 'No data'}<br/>
+              GHP: ${ghp !== null ? ghp.toFixed(2) : 'No data'}<br/>
+              PAR: ${par !== null ? par.toFixed(2) : 'No data'}<br/>
+              Trend: ${trend || 'No data'}
+            </div>
+          `;
+
+          textBox.innerHTML = `${point.text}${dataHTML}`;
+
+          const yearSlider = document.getElementById('yearSlider');
+          if (yearSlider) {
+            yearSlider.value = year;
+
+            restoreCountryColors();
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+
+        textBox.innerHTML = "Try it out and explore freely!";
+        btn.disabled = false;
+      }
+      
+      document.getElementById('storyBtn').addEventListener('click', playStory);
     </script>
   </body>
 </html>
