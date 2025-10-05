@@ -41,9 +41,23 @@
         overflow-y: auto;
       }
       #trendControls {
+<<<<<<< HEAD
       margin-top: 15px;
       }
 
+=======
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: white;
+        background: rgba(0,0,0,0.8);
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 12px;
+        z-index: 100;
+        display: none;
+      }
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
       #controls h3, #trendControls h3 {
         margin-top: 0;
         margin-bottom: 10px;
@@ -107,6 +121,15 @@
         box-shadow: 0 0 10px rgba(0,0,0,0.5);
       }
     </style>
+    <style>
+      #storyBtn, #storyText {
+        position: absolute;
+        z-index: 10000 !important;
+      }
+      #storyBtn {
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      }
+    </style>
   </head>
   <body>
     <div id="loading">
@@ -115,14 +138,15 @@
     </div>
     
     <div id="controls">
-      <h3>🌍 World CO₂ Predictions</h3>
+      <h3>🌍 World CO₂ </h3>
       <p style="font-size: 11px; margin-bottom: 10px;">Click to filter by level:</p>
       <div class="legend-item active" data-level="high">
         <div class="legend-color" style="background: #d73027;"></div>
         <span>High (>66)</span>
       </div>
       <div class="legend-item active" data-level="medium">
-        <div class="legend-color" style="background: #fdae61;"></div>
+        <div class="legend-color" style="background: #cba125
+;"></div>
         <span>Mid (33-66)</span>
       </div>
       <div class="legend-item active" data-level="low">
@@ -159,6 +183,41 @@
     <div id="yearLabel">Year: 2025</div>
     <input type="range" id="yearSlider" min="1995" max="2039" step="1" value="2025" />
 
+<<<<<<< HEAD
+    <button id="storyBtn"
+            style="position:absolute; top:20px; left:50%; transform:translateX(-50%);
+                   z-index:300; background:#007bff; color:white; border:none; border-radius:6px;
+                   padding:10px 16px; cursor:pointer; font-weight:bold;">▶ Story Mode</button>
+
+    <div id="storyText"
+         style="position:absolute; bottom:90px; left:50%; transform:translateX(-50%);
+                color:white; background:rgba(0,0,0,0.7); padding:12px 20px;
+                border-radius:8px; font-size:14px; text-align:center;
+                max-width:80%; z-index:300;">Click ▶ Story Mode to begin</div>
+=======
+    <div id="trendControls">
+      <h3>📈 Emission Trends</h3>
+      <p style="font-size: 11px; margin-bottom: 10px;">Click to filter by trend:</p>
+      <div class="legend-item active" data-trend="increasing">
+        <div class="legend-color" style="background: #c47e7e;"></div>
+        <span>Increasing</span>
+      </div>
+      <div class="legend-item active" data-trend="steady">
+        <div class="legend-color" style="background: #82abcc;"></div>
+        <span>Steady</span>
+      </div>
+      <div class="legend-item active" data-trend="decreasing">
+        <div class="legend-color" style="background: #95c297;"></div>
+        <span>Decreasing</span>
+      </div>
+    </div>
+
+    <div id="yearLabel">Year: 2025</div>
+    <input type="range" id="yearSlider" min="1995" max="2039" step="1" value="2025" />
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
+
+    <div id="globeViz"></div>
+
     <button id="storyBtn"
             style="position:absolute; top:20px; left:50%; transform:translateX(-50%);
                    z-index:300; background:#007bff; color:white; border:none; border-radius:6px;
@@ -170,8 +229,6 @@
                 border-radius:8px; font-size:14px; text-align:center;
                 max-width:80%; z-index:300;">Click ▶ Story Mode to begin</div>
 
-    <div id="globeViz"></div>
-
     <script src="https://unpkg.com/globe.gl"></script>
     <script src="https://unpkg.com/papaparse@5"></script>
     <script>
@@ -180,7 +237,10 @@
       let ghpData = {};
       let parData = {};
       let trendData = {};
+<<<<<<< HEAD
       let trendBubbles = [];
+=======
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
       let activeFilters = { high: true, medium: true, low: true };
       let activeTrendFilters = { increasing: true, steady: true, decreasing: true };
 
@@ -392,15 +452,30 @@
             countriesData = data;
             console.log(`Map loaded: ${countriesData.features.length} countries`);
             
+<<<<<<< HEAD
             createTrendBubbles();
+=======
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
             updateYear(2025);
 
             world
               .polygonsData(countriesData.features)
+<<<<<<< HEAD
               .polygonAltitude(0.01)
               .polygonCapColor(d => getCountryColor(d))
 
 
+=======
+              .polygonAltitude(d => d.properties.visible ? 0.01 : 0)
+              .polygonCapColor(d => {
+                if (!d.properties.visible) return 'rgba(80, 80, 80, 0.3)';
+                const cda = d.properties.cda;
+                if (cda === null || cda === undefined) return '#333333';
+                if (cda > 66) return '#d73027';
+                if (cda > 33) return '#cba125';
+                return '#4daf4a';
+              })
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
               .polygonSideColor(d => d.properties.visible ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)')
               .polygonStrokeColor(d => d.properties.visible ? '#111' : '#333')
               .polygonLabel(d => {
@@ -489,6 +564,7 @@
 
       function setupTrendFilters() {
         const trendItems = document.querySelectorAll('#trendControls .legend-item');
+<<<<<<< HEAD
         
         trendItems.forEach(item => {
           item.addEventListener('click', () => {
@@ -507,6 +583,44 @@
             applyFilters();
           });
         });
+=======
+        
+        trendItems.forEach(item => {
+          item.addEventListener('click', () => {
+            const trend = item.getAttribute('data-trend');
+            
+            activeTrendFilters[trend] = !activeTrendFilters[trend];
+            
+            if (activeTrendFilters[trend]) {
+              item.classList.add('active');
+              item.classList.remove('inactive');
+            } else {
+              item.classList.remove('active');
+              item.classList.add('inactive');
+            }
+            
+            applyFilters();
+          });
+        });
+      }
+
+      function applyFilters() {
+        if (!countriesData) return;
+        
+        countriesData.features.forEach(feature => {
+          const level = feature.properties.pollution_level_key;
+          const trendKey = feature.properties.trend_label_key;
+          
+          const levelMatch = activeFilters[level] || level === 'nodata';
+          const trendMatch = activeTrendFilters[trendKey] || trendKey === 'notrend';
+          
+          feature.properties.visible = levelMatch && trendMatch;
+        });
+        
+        world.polygonsData(countriesData.features);
+        
+        console.log('Filters applied - Levels:', activeFilters, 'Trends:', activeTrendFilters);
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
       }
 
       function applyFilters() {
@@ -580,6 +694,18 @@
           'United Kingdom': 'United Kingdom'
         };
         
+<<<<<<< HEAD
+=======
+        const mappedName = nameMap[featureName];
+        if (mappedName && dataStore[mappedName] && dataStore[mappedName][year] !== undefined) {
+          return dataStore[mappedName][year];
+        }
+        
+        return null;
+      }
+
+      function findTrendData(featureName) {
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
         if (trendData[featureName]) {
           return trendData[featureName];
         }
@@ -645,9 +771,15 @@
           
           const level = feature.properties.pollution_level_key;
           const trendKey = feature.properties.trend_label_key;
+<<<<<<< HEAD
           feature.properties.levelVisible = activeFilters[level] || level === 'nodata';
           feature.properties.trendVisible = activeTrendFilters[trendKey] || trendKey === 'notrend';
 
+=======
+          const levelMatch = activeFilters[level] || level === 'nodata';
+          const trendMatch = activeTrendFilters[trendKey] || trendKey === 'notrend';
+          feature.properties.visible = levelMatch && trendMatch;
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
         });
         
         console.log(`Year ${year}: CDA=${countriesWithCDA}, GHP=${countriesWithGHP}, PAR=${countriesWithPAR}, Trend=${countriesWithTrend} countries`);
@@ -671,13 +803,18 @@
         world.width(window.innerWidth).height(window.innerHeight);
       });
 
+<<<<<<< HEAD
       // STORY MODE
+=======
+      // ---- STORY MODE FEATURE ----
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
       const storyPoints = [
         { country: "United States", lat: 40.71, lng: -74.00, year: 2000, text: "2000: Rising emissions in North America." },
         { country: "Japan", lat: 35.68, lng: 139.69, year: 2010, text: "2010: Industrial growth impacts East Asia." },
         { country: "Brazil", lat: -23.55, lng: -46.63, year: 2020, text: "2020: South America focuses on sustainability." },
         { country: "United Kingdom", lat: 51.51, lng: -0.13, year: 2025, text: "2025: Global collaboration stabilizes CO₂." }
       ];
+<<<<<<< HEAD
       function getCountryColor(d) {
         const cda = d.properties.cda;
         if (cda === null || cda === undefined) return 'rgba(50,50,50,0.3)';
@@ -731,6 +868,8 @@
 
 
 
+=======
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
 
       async function playStory() {
         const btn = document.getElementById('storyBtn');
@@ -739,6 +878,7 @@
 
         for (const point of storyPoints) {
           world.pointOfView({ lat: point.lat, lng: point.lng, altitude: 2.0 }, 2000);
+<<<<<<< HEAD
           highlightCountry(point.country);
 
           const year = point.year;
@@ -746,11 +886,21 @@
 
           updateYear(year);
 
+=======
+          const year = point.year;
+          const country = point.country;
+
+          // Get live data for that year and country
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
           const cda = findCountryData(country, year, cdaData);
           const ghp = findCountryData(country, year, ghpData);
           const par = findCountryData(country, year, parData);
           const trend = findTrendData(country);
 
+<<<<<<< HEAD
+=======
+          // Format data block
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
           const dataHTML = `
             <div style="margin-top: 10px; font-size: 12px; color: #ccc;">
               <b>${country}</b> (${year})<br/>
@@ -761,6 +911,7 @@
             </div>
           `;
 
+<<<<<<< HEAD
           textBox.innerHTML = `${point.text}${dataHTML}`;
 
           const yearSlider = document.getElementById('yearSlider');
@@ -770,14 +921,34 @@
             restoreCountryColors();
           }
 
+=======
+          // Display the story text + data
+          textBox.innerHTML = `${point.text}${dataHTML}`;
+
+          // Sync with slider
+          const yearSlider = document.getElementById('yearSlider');
+          if (yearSlider) {
+            yearSlider.value = year;
+            updateYear(year);
+          }
+
+          // Pause before next story point
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
           await new Promise(resolve => setTimeout(resolve, 5000));
         }
 
         textBox.innerHTML = "Try it out and explore freely!";
         btn.disabled = false;
       }
+<<<<<<< HEAD
       
       document.getElementById('storyBtn').addEventListener('click', playStory);
+=======
+      document.addEventListener('DOMContentLoaded', function() {
+        const btn = document.getElementById('storyBtn');
+        if (btn) btn.addEventListener('click', playStory);
+      });
+>>>>>>> a40f00de6766de74948c3a7d7fada83605a5621d
     </script>
   </body>
 </html>
