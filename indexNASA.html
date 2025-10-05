@@ -46,48 +46,96 @@
         display: flex;
         align-items: center;
         margin: 5px 0;
+        cursor: pointer;
+        padding: 5px;
+        border-radius: 4px;
+        transition: background 0.2s;
+      }
+      .legend-item:hover {
+        background: rgba(255,255,255,0.1);
+      }
+      .legend-item.inactive {
+        opacity: 0.3;
       }
       .legend-color {
         width: 20px;
         height: 20px;
         margin-right: 8px;
         border-radius: 3px;
+        border: 2px solid transparent;
+        transition: border 0.2s;
+      }
+      .legend-item.active .legend-color {
+        border-color: white;
+      }
+      #yearSlider {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 50%;
+        max-width: 600px;
+        z-index: 200;
+        height: 30px;
+        cursor: pointer;
+      }
+      #yearLabel {
+        position: absolute;
+        bottom: 60px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        font-size: 20px;
+        font-weight: bold;
+        z-index: 200;
+        background: rgba(0,0,0,0.8);
+        padding: 10px 20px;
+        border-radius: 8px;
       }
     </style>
   </head>
   <body>
     <div id="loading">
       <div>🌍 Loading World Globe...</div>
-      <div style="margin-top: 10px; font-size: 12px;">Loading all countries...</div>
+      <div style="margin-top: 10px; font-size: 12px;">Loading pollution data...</div>
     </div>
     
     <div id="controls">
-      <h3>🌍 World Pollution</h3>
-      <div class="legend-item">
+      <h3>🌍 World CO₂ Predictions</h3>
+      <p style="font-size: 11px; margin-bottom: 10px;">Click to filter by level:</p>
+      <div class="legend-item active" data-level="high">
         <div class="legend-color" style="background: #d73027;"></div>
-        <span>High CO (>66)</span>
+        <span>High (>66)</span>
       </div>
-      <div class="legend-item">
+      <div class="legend-item active" data-level="medium">
         <div class="legend-color" style="background: #fdae61;"></div>
-        <span>Mid CO (33-66)</span>
+        <span>Mid (33-66)</span>
       </div>
-      <div class="legend-item">
+      <div class="legend-item active" data-level="low">
         <div class="legend-color" style="background: #4daf4a;"></div>
-        <span>Low CO (<33)</span>
+        <span>Low (<33)</span>
       </div>
       <p style="font-size: 11px; margin-top: 15px; opacity: 0.8;">
         Hover over countries for details<br>
+        (Shows CDA, GHP, PAR data)<br>
         Drag to rotate • Scroll to zoom
       </p>
     </div>
-    
+
+    <div id="yearLabel">Year: 2021</div>
+    <input type="range" id="yearSlider" min="2021" max="2039" step="1" value="2021" />
+
     <div id="globeViz"></div>
 
     <script src="https://unpkg.com/globe.gl"></script>
+    <script src="https://unpkg.com/papaparse@5"></script>
     <script>
-      console.log('Starting world globe...');
+      let countriesData;
+      let cdaData = {};
+      let ghpData = {};
+      let parData = {};
+      let activeFilters = { high: true, medium: true, low: true };
 
-      // Initialize globe
       const world = Globe()
         (document.getElementById('globeViz'))
         .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-day.jpg')
@@ -96,112 +144,254 @@
         .width(window.innerWidth)
         .height(window.innerHeight);
 
-      console.log('Globe initialized');
+      console.log('Loading data...');
 
-      // Fetch world countries GeoJSON
-      fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson')
-        .then(res => res.json())
-        .then(countriesData => {
-          console.log('Countries loaded:', countriesData.features.length);
+      function loadCSV(filename, dataStore, key) {
+        console.log(`Loading ${filename}...`);
+        return fetch(filename)
+          .then(res => {
+            console.log(`${key}: HTTP ${res.status}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status} for ${filename}`);
+            return res.text();
+          })
+          .then(csvText => {
+            return new Promise((resolve, reject) => {
+              Papa.parse(csvText, {
+                header: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                  console.log(`${key}: ${results.data.length} rows parsed`);
+                  
+                  let count = 0;
+                  results.data.forEach(row => {
+                    if (row.country && row.year && row.predicted_value !== null && row.predicted_value !== undefined) {
+                      if (!dataStore[row.country]) {
+                        dataStore[row.country] = {};
+                      }
+                      dataStore[row.country][row.year] = row.predicted_value;
+                      count++;
+                    }
+                  });
 
-          // Add mock pollution data to each country
-          countriesData.features.forEach(feature => {
-            // Random CO value between 0-100
-            feature.properties.co = Math.random() * 100;
-            feature.properties.ndvi = Math.random();
-            feature.properties.pollution_level = feature.properties.co > 66 ? 'High' : 
-                                                  feature.properties.co > 33 ? 'Medium' : 'Low';
-          });
-
-          // Configure polygons (countries)
-          world
-            .polygonsData(countriesData.features)
-            .polygonAltitude(0.01)
-            .polygonCapColor(d => {
-              const co = d.properties.co;
-              if (co > 66) return '#d73027'; // Red
-              if (co > 33) return '#fdae61'; // Orange
-              return '#4daf4a'; // Green
-            })
-            .polygonSideColor(() => 'rgba(0, 0, 0, 0.1)')
-            .polygonStrokeColor(() => '#111')
-            .polygonLabel(d => {
-              const name = d.properties.ADMIN || d.properties.NAME || d.properties.name || 'Unknown';
-              return `
-                <div style="background: rgba(0,0,0,0.9); color: white; padding: 12px; border-radius: 5px; font-family: Arial; max-width: 200px;">
-                  <b style="font-size: 14px;">${name}</b><br/>
-                  <hr style="border: none; border-top: 1px solid #555; margin: 8px 0;"/>
-                  <div style="font-size: 12px;">
-                    <b>CO Level:</b> ${d.properties.co.toFixed(1)}<br/>
-                    <b>Status:</b> ${d.properties.pollution_level}<br/>
-                    <b>NDVI:</b> ${d.properties.ndvi.toFixed(3)}
-                  </div>
-                </div>
-              `;
+                  console.log(`${key}: ${Object.keys(dataStore).length} countries, ${count} data points`);
+                  resolve();
+                },
+                error: function(error) {
+                  console.error(`${key}: Parse error`, error);
+                  reject(error);
+                }
+              });
             });
+          })
+          .catch(error => {
+            console.error(`${key}: ERROR`, error);
+            throw error;
+          });
+      }
 
-          console.log('World polygons configured');
+      Promise.all([
+        loadCSV('CDA_predictions_2030.csv', cdaData, 'CDA'),
+        loadCSV('GHP_predictions_2030.csv', ghpData, 'GHP'),
+        loadCSV('PAR_predictions_2030.csv', parData, 'PAR')
+      ])
+      .then(() => {
+        console.log('All CSV files loaded successfully');
+        loadWorldMap();
+      })
+      .catch(error => {
+        console.error('FATAL ERROR:', error);
+        document.getElementById('loading').innerHTML = 
+          '<div style="color: #ff6666;">Error loading data<br/>' + 
+          error.message + '<br/>Check console (F12) for details</div>';
+      });
 
-          // Add major cities as points
-          const cityData = [
-            { lat: 40.71, lng: -74.00, size: 0.5, color: '#ff0000', name: 'New York' },
-            { lat: 51.51, lng: -0.13, size: 0.5, color: '#ff8800', name: 'London' },
-            { lat: 35.68, lng: 139.69, size: 0.5, color: '#ff0000', name: 'Tokyo' },
-            { lat: 39.90, lng: 116.40, size: 0.5, color: '#ff0000', name: 'Beijing' },
-            { lat: 28.61, lng: 77.21, size: 0.4, color: '#ff0000', name: 'New Delhi' },
-            { lat: -23.55, lng: -46.63, size: 0.4, color: '#ff8800', name: 'São Paulo' },
-            { lat: 55.75, lng: 37.62, size: 0.4, color: '#ff8800', name: 'Moscow' },
-            { lat: -33.87, lng: 151.21, size: 0.3, color: '#00ff00', name: 'Sydney' },
-            { lat: 1.35, lng: 103.82, size: 0.3, color: '#ff8800', name: 'Singapore' },
-            { lat: 19.43, lng: -99.13, size: 0.4, color: '#ff0000', name: 'Mexico City' }
-          ];
+      function loadWorldMap() {
+        console.log('Loading world map...');
+        fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson')
+          .then(res => res.json())
+          .then(data => {
+            countriesData = data;
+            console.log(`Map loaded: ${countriesData.features.length} countries`);
+            
+            updateYear(2021);
 
-          world
-            .pointsData(cityData)
-            .pointAltitude('size')
-            .pointColor('color')
-            .pointRadius(0.25)
-            .pointLabel(d => `
-              <div style="background: rgba(0,0,0,0.9); color: white; padding: 8px 12px; border-radius: 5px; font-family: Arial;">
-                <b>${d.name}</b><br/>
-                <span style="font-size: 11px;">Major City</span>
-              </div>
-            `);
+            world
+              .polygonsData(countriesData.features)
+              .polygonAltitude(d => d.properties.visible ? 0.01 : 0)
+              .polygonCapColor(d => {
+                if (!d.properties.visible) return 'rgba(80, 80, 80, 0.3)';
+                const cda = d.properties.cda;
+                if (cda === null || cda === undefined) return '#333333';
+                if (cda > 66) return '#d73027';
+                if (cda > 33) return '#fdae61';
+                return '#4daf4a';
+              })
+              .polygonSideColor(d => d.properties.visible ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)')
+              .polygonStrokeColor(d => d.properties.visible ? '#111' : '#333')
+              .polygonLabel(d => {
+                const name = d.properties.ADMIN || d.properties.NAME || 'Unknown';
+                const cda = d.properties.cda;
+                const ghp = d.properties.ghp;
+                const par = d.properties.par;
+                
+                const hasCDA = cda !== null && cda !== undefined;
+                const hasGHP = ghp !== null && ghp !== undefined;
+                const hasPAR = par !== null && par !== undefined;
+                
+                return `
+                  <div style="background: rgba(0,0,0,0.95); color: white; padding: 14px; border-radius: 6px; max-width: 240px; font-family: Arial;">
+                    <b style="font-size: 15px; color: #4fc3f7;">${name}</b><br/>
+                    <hr style="border: none; border-top: 1px solid #555; margin: 10px 0;"/>
+                    <div style="font-size: 12px; line-height: 1.6;">
+                      <div style="margin-bottom: 8px;">
+                        <b style="color: #ff9800;">CDA (CO₂):</b> ${hasCDA ? cda.toFixed(2) : 'No data'}<br/>
+                        ${hasCDA ? `<span style="font-size: 10px; color: #aaa;">Status: ${d.properties.pollution_level}</span>` : ''}
+                      </div>
+                      <div style="margin-bottom: 8px;">
+                        <b style="color: #4caf50;">GHP (GHG/capita):</b> ${hasGHP ? ghp.toFixed(2) : 'No data'}
+                      </div>
+                      <div style="margin-bottom: 8px;">
+                        <b style="color: #f44336;">PAR (PM2.5):</b> ${hasPAR ? par.toFixed(2) : 'No data'}
+                      </div>
+                      <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #444;">
+                        <b style="color: #90caf9;">Year:</b> ${d.properties.year}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              });
 
-          console.log('City points configured');
-
-          // Start with a nice view
-          world.pointOfView({
-            lat: 30,
-            lng: 0,
-            altitude: 2.5
-          }, 1000);
-
-          // Hide loading, show controls
-          setTimeout(() => {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('controls').style.display = 'block';
-          }, 1500);
+            
+            setupLegendFilters();
+            
+            console.log('Globe ready!');
+          })
+          .catch(error => {
+            console.error('Map loading error:', error);
+            document.getElementById('loading').innerHTML = 
+              '<div style="color: #ff6666;">Error loading world map<br/>' + 
+              error.message + '</div>';
+          });
+      }
 
-        })
-        .catch(error => {
-          console.error('Error loading countries:', error);
-          document.getElementById('loading').innerHTML = 
-            '<div style="color: #ff6666;">Error loading world data<br/><span style="font-size: 12px;">' + 
-            error.message + '</span></div>';
+      function setupLegendFilters() {
+        const legendItems = document.querySelectorAll('.legend-item');
+        
+        legendItems.forEach(item => {
+          item.addEventListener('click', () => {
+            const level = item.getAttribute('data-level');
+            
+            activeFilters[level] = !activeFilters[level];
+            
+            if (activeFilters[level]) {
+              item.classList.add('active');
+              item.classList.remove('inactive');
+            } else {
+              item.classList.remove('active');
+              item.classList.add('inactive');
+            }
+            
+            applyFilters();
+          });
         });
+      }
 
-      // Auto-rotate globe
+      function applyFilters() {
+        if (!countriesData) return;
+        
+        countriesData.features.forEach(feature => {
+          const level = feature.properties.pollution_level_key;
+          feature.properties.visible = activeFilters[level] || level === 'nodata';
+        });
+        
+        world.polygonsData(countriesData.features);
+        
+        console.log('Filters applied:', activeFilters);
+      }
+
+      function findCountryData(featureName, year, dataStore) {
+        if (dataStore[featureName] && dataStore[featureName][year] !== undefined) {
+          return dataStore[featureName][year];
+        }
+        
+        const lowerName = featureName.toLowerCase();
+        for (let country in dataStore) {
+          if (country.toLowerCase() === lowerName && dataStore[country][year] !== undefined) {
+            return dataStore[country][year];
+          }
+        }
+        
+        const nameMap = {
+          'United States of America': 'United States',
+          'Russian Federation': 'Russia',
+          'Republic of Korea': 'South Korea',
+          'Democratic Republic of the Congo': 'Congo',
+          'Czech Republic': 'Czechia'
+        };
+        
+        const mappedName = nameMap[featureName];
+        if (mappedName && dataStore[mappedName] && dataStore[mappedName][year] !== undefined) {
+          return dataStore[mappedName][year];
+        }
+        
+        return null;
+      }
+
+      function updateYear(year) {
+        if (!countriesData) return;
+        
+        let countriesWithCDA = 0;
+        let countriesWithGHP = 0;
+        let countriesWithPAR = 0;
+        
+        countriesData.features.forEach(feature => {
+          const countryName = feature.properties.ADMIN || feature.properties.NAME || 'Unknown';
+          
+          const cda = findCountryData(countryName, year, cdaData);
+          const ghp = findCountryData(countryName, year, ghpData);
+          const par = findCountryData(countryName, year, parData);
+          
+          if (cda !== null) {
+            countriesWithCDA++;
+            feature.properties.cda = cda;
+            feature.properties.pollution_level = cda > 66 ? 'High' : cda > 33 ? 'Medium' : 'Low';
+            feature.properties.pollution_level_key = cda > 66 ? 'high' : cda > 33 ? 'medium' : 'low';
+          } else {
+            feature.properties.cda = null;
+            feature.properties.pollution_level = 'No Data';
+            feature.properties.pollution_level_key = 'nodata';
+          }
+          
+          feature.properties.visible = activeFilters[feature.properties.pollution_level_key] || feature.properties.pollution_level_key === 'nodata';
+          
+          if (ghp !== null) countriesWithGHP++;
+          feature.properties.ghp = ghp;
+          
+          if (par !== null) countriesWithPAR++;
+          feature.properties.par = par;
+          
+          feature.properties.year = year;
+        });
+        
+        console.log(`Year ${year}: CDA=${countriesWithCDA}, GHP=${countriesWithGHP}, PAR=${countriesWithPAR} countries`);
+        
+        world.polygonsData(countriesData.features);
+        document.getElementById('yearLabel').textContent = "Year: " + year;
+      }
+
+      document.getElementById('yearSlider').addEventListener('input', (e) => {
+        updateYear(+e.target.value);
+      });
+
       world.controls().autoRotate = true;
       world.controls().autoRotateSpeed = 0.3;
       world.controls().enableZoom = true;
 
-      // Handle window resize
       window.addEventListener('resize', () => {
         world.width(window.innerWidth).height(window.innerHeight);
       });
-
-      console.log('World globe setup complete');
     </script>
   </body>
 </html>

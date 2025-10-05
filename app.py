@@ -7,7 +7,7 @@ import os
 
 sentinels = [-8888, -9999]
 MIN_YEARS = 6
-future_years = np.arange(2021, 2040)
+future_years = np.arange(1995, 2040)
 EPS = 1e-6 
 
 # Loading the data
@@ -131,9 +131,9 @@ def plot_predictions(data, predictions, dataset_name, countries=['Albania', 'Uni
     plt.ylabel("Value (0-100)")
     plt.title(f"{dataset_name} - Historical Data & Predictions")
     plt.legend()
-    plt.savefig(f"{dataset_name}_predictions_plot.png")
+   # plt.savefig(f"{dataset_name}_predictions_plot.png")
     plt.close()
-    print(f"Plot saved: {dataset_name}_predictions_plot.png")
+    #print(f"Plot saved: {dataset_name}_predictions_plot.png")
 
 
 # Process each dataset
