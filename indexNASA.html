@@ -135,6 +135,7 @@
       let cdaData = {};
       let ghpData = {};
       let parData = {};
+      let trendData = {}; // New: stores trend_label by country
       let activeFilters = { high: true, medium: true, low: true };
 
       const world = Globe()
@@ -190,10 +191,49 @@
           });
       }
 
+      // New function to load trend clusters CSV
+      function loadTrendClusters() {
+        console.log('Loading co2_trend_clusters.csv...');
+        return fetch('co2_trend_clusters.csv')
+          .then(res => {
+            console.log(`Trend clusters: HTTP ${res.status}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status} for co2_trend_clusters.csv`);
+            return res.text();
+          })
+          .then(csvText => {
+            return new Promise((resolve, reject) => {
+              Papa.parse(csvText, {
+                header: true,
+                complete: function(results) {
+                  console.log(`Trend clusters: ${results.data.length} rows parsed`);
+                  
+                  results.data.forEach(row => {
+                    if (row.country && row.trend_label) {
+                      trendData[row.country] = row.trend_label;
+                    }
+                  });
+
+                  console.log(`Trend data loaded for ${Object.keys(trendData).length} countries`);
+                  resolve();
+                },
+                error: function(error) {
+                  console.error('Trend clusters: Parse error', error);
+                  reject(error);
+                }
+              });
+            });
+          })
+          .catch(error => {
+            console.error('Trend clusters: ERROR', error);
+            throw error;
+          });
+      }
+
       Promise.all([
         loadCSV('CDA_predictions_2030.csv', cdaData, 'CDA'),
         loadCSV('GHP_predictions_2030.csv', ghpData, 'GHP'),
-        loadCSV('PAR_predictions_2030.csv', parData, 'PAR')
+        loadCSV('PAR_predictions_2030.csv', parData, 'PAR'),
+        loadTrendClusters()
       ])
       .then(() => {
         console.log('All CSV files loaded successfully');
@@ -234,13 +274,21 @@
                 const cda = d.properties.cda;
                 const ghp = d.properties.ghp;
                 const par = d.properties.par;
+                const trend = d.properties.trend_label;
                 
                 const hasCDA = cda !== null && cda !== undefined;
                 const hasGHP = ghp !== null && ghp !== undefined;
                 const hasPAR = par !== null && par !== undefined;
+                const hasTrend = trend !== null && trend !== undefined;
+                
+                // Determine trend color
+                let trendColor = '#888';
+                if (trend === 'Increasing') trendColor = '#ff5252';
+                else if (trend === 'Decreasing') trendColor = '#4caf50';
+                else if (trend === 'Steady') trendColor = '#2196f3';
                 
                 return `
-                  <div style="background: rgba(0,0,0,0.95); color: white; padding: 14px; border-radius: 6px; max-width: 240px; font-family: Arial;">
+                  <div style="background: rgba(0,0,0,0.95); color: white; padding: 14px; border-radius: 6px; max-width: 260px; font-family: Arial;">
                     <b style="font-size: 15px; color: #4fc3f7;">${name}</b><br/>
                     <hr style="border: none; border-top: 1px solid #555; margin: 10px 0;"/>
                     <div style="font-size: 12px; line-height: 1.6;">
@@ -254,6 +302,11 @@
                       <div style="margin-bottom: 8px;">
                         <b style="color: #f44336;">PAR (PM2.5):</b> ${hasPAR ? par.toFixed(2) : 'No data'}
                       </div>
+                      ${hasTrend ? `
+                      <div style="margin-bottom: 8px; padding: 6px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+                        <b style="color: ${trendColor};">Trend:</b> ${trend}
+                      </div>
+                      ` : ''}
                       <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #444;">
                         <b style="color: #90caf9;">Year:</b> ${d.properties.year}
                       </div>
@@ -340,6 +393,35 @@
         return null;
       }
 
+      // New function to find trend data
+      function findTrendData(featureName) {
+        if (trendData[featureName]) {
+          return trendData[featureName];
+        }
+        
+        const lowerName = featureName.toLowerCase();
+        for (let country in trendData) {
+          if (country.toLowerCase() === lowerName) {
+            return trendData[country];
+          }
+        }
+        
+        const nameMap = {
+          'United States of America': 'United States',
+          'Russian Federation': 'Russia',
+          'Republic of Korea': 'South Korea',
+          'Democratic Republic of the Congo': 'Congo',
+          'Czech Republic': 'Czechia'
+        };
+        
+        const mappedName = nameMap[featureName];
+        if (mappedName && trendData[mappedName]) {
+          return trendData[mappedName];
+        }
+        
+        return null;
+      }
+
       
       function updateYear(year) {
         if (!countriesData) return;
@@ -347,6 +429,7 @@
         let countriesWithCDA = 0;
         let countriesWithGHP = 0;
         let countriesWithPAR = 0;
+        let countriesWithTrend = 0;
         
         countriesData.features.forEach(feature => {
           const countryName = feature.properties.ADMIN || feature.properties.NAME || 'Unknown';
@@ -354,6 +437,7 @@
           const cda = findCountryData(countryName, year, cdaData);
           const ghp = findCountryData(countryName, year, ghpData);
           const par = findCountryData(countryName, year, parData);
+          const trend = findTrendData(countryName);
           
           if (cda !== null) {
             countriesWithCDA++;
@@ -374,10 +458,14 @@
           if (par !== null) countriesWithPAR++;
           feature.properties.par = par;
           
+          if (trend !== null) countriesWithTrend++;
+          feature.properties.trend_label = trend;
+          
           feature.properties.year = year;
         });
         
-        console.log(`Year ${year}: CDA=${countriesWithCDA}, GHP=${countriesWithGHP}, PAR=${countriesWithPAR} countries`);
+        
+        console.log(`Year ${year}: CDA=${countriesWithCDA}, GHP=${countriesWithGHP}, PAR=${countriesWithPAR}, Trend=${countriesWithTrend} countries`);
         
         world.polygonsData(countriesData.features);
         document.getElementById('yearLabel').textContent = "Year: " + year;
