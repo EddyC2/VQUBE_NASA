@@ -7,3 +7,20 @@ To run the project, first install all required Python libraries with `pip instal
 The main technologies used include Python for data processing and analysis, HTML, CSS, and JavaScript for the web interface, and libraries such as `pandas`, `numpy`, `matplotlib`, `scikit-learn`, and `plotly`. Key files include the prediction and clustering scripts (`app.py`, `Co2chart.py`), datasets (`CDA_ind.csv`, `GHP_ind.csv`, `PAR_ind.csv`), the output clustering file (`co2_trend_clusters.csv`), and the main webpage (`indexNASA.html`).  
 
 Team members: Eduardo Diego, Yesenia Guzman, Darshana Shah, Bhavik Pandya, Jignesh Sakhia. Future improvements could include integrating live NASA API data, adding additional pollution indicators, and enhancing the 3D visualization and animations. The project is open-source for educational and environmental awareness purposes.
+
+## 📊 Datasets
+
+The project uses NASA open datasets and the **2020 Environmental Performance Index (EPI)** to analyze and visualize global environmental trends from 1995–2020.
+
+ NASA datasets
+- CO₂, GHP, PAR datasets in CSV format
+
+2020 Environmental Performance Index (EPI)
+- **Title:** 2020 Environmental Performance Index (EPI)  
+- **Creator:** Yale Center for Environmental Law and Policy (YCELP) - Yale University, and Center for International Earth Science Information Network (CIESIN) - Columbia University  
+- **Publisher:** Yale Center for Environmental Law and Policy (YCELP)/Yale University  
+- **Release Date:** 2020-11-09  
+- **DOI / Link:** [https://doi.org/10.7927/f54c-0r44](https://doi.org/10.7927/f54c-0r44)  
+
+**Citation:**  
+Wendling, Z.A., Emerson, J.W., de Sherbinin, A., Etsy, D.C., et al. 2020. *Environmental Performance Index 2020*. New Haven, CT: Yale Center for Environmental Law and Policy. [https://doi.org/10.13140/RG.2.2.21182.51529](https://doi.org/10.13140/RG.2.2.21182.51529)
