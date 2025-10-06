@@ -1,5 +1,7 @@
 # 🌍 Ecosphere
 
+#Link to hosted website project: [Open Project!](https://eddyc2.github.io/VQUBE_NASA/)
+
 #Link to Youtube Video: [NASA Space App Challenge Presentation](https://www.youtube.com/watch?v=GIgVDVripgc)
 
 Ecosphere is an interactive globe that visualizes global CO₂, GHP, and PAR trends using machine learning, Python, HTML, CSS, and JavaScript. Developed for the NASA Space Apps Challenge 2025, the project explores global pollution and environmental impact using NASA open datasets from 1995 to 2020. It uses machine learning algorithms to analyze historical environmental data, predict future trends up to 2039, and cluster countries based on CO₂ emission patterns, providing insights into global environmental performance with use of kmeans cluster algorithm.
